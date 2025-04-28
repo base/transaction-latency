@@ -92,7 +92,7 @@ func main() {
 		log.Fatalf("Failed to get network ID: %v", err)
 	}
 
-	iterations := 500
+	iterations := 100
 	flashblockErrors := 0
 	baseErrors := 0
 
@@ -106,8 +106,8 @@ func main() {
 
 		flashblockTimings = append(flashblockTimings, timing)
 
-		// wait for it to be mined -- sleep a random amount between 400ms and 1s
-		time.Sleep(time.Duration(rand.Int63n(600)+400) * time.Millisecond)
+		// wait for it to be mined -- sleep a random amount between 600ms and 1s
+		time.Sleep(time.Duration(rand.Int63n(600)+600) * time.Millisecond)
 	}
 
 	// wait for the final fb transaction to land
@@ -123,8 +123,8 @@ func main() {
 
 		baseTimings = append(baseTimings, timing)
 
-		// wait for it to be mined -- sleep a random amount between 2s and 3s
-		time.Sleep(time.Duration(rand.Int63n(1000)+2000) * time.Millisecond)
+		// wait for it to be mined -- sleep a random amount between 4s and 3s
+		time.Sleep(time.Duration(rand.Int63n(1000)+4000) * time.Millisecond)
 	}
 
 	if err := writeToFile(fmt.Sprintf("/data/flashblocks-%s.csv", region), flashblockTimings); err != nil {
