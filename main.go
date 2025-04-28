@@ -93,18 +93,21 @@ func main() {
 	}
 
 	iterations := 500
+	flashblockErrors := 0
+	baseErrors := 0
 
 	log.Printf("Starting flashblock transactions")
 	for i := 0; i < iterations; i++ {
 		timing, err := timeTransaction(chainId, privateKey, fromAddress, toAddress, flashblocksClient)
 		if err != nil {
+			flashblockErrors += 1
 			log.Printf("Failed to send transaction: %v", err)
 		}
 
 		flashblockTimings = append(flashblockTimings, timing)
 
-		// wait for it to be mined -- sleep a random amount between 0 and 1s
-		time.Sleep(time.Duration(rand.Float64() * float64(time.Second)))
+		// wait for it to be mined -- sleep a random amount between 400ms and 1s
+		time.Sleep(time.Duration(rand.Int63n(600)+400) * time.Millisecond)
 	}
 
 	// wait for the final fb transaction to land
@@ -114,13 +117,14 @@ func main() {
 	for i := 0; i < iterations; i++ {
 		timing, err := timeTransaction(chainId, privateKey, fromAddress, toAddress, baseClient)
 		if err != nil {
+			baseErrors += 1
 			log.Printf("Failed to send transaction: %v", err)
 		}
 
 		baseTimings = append(baseTimings, timing)
 
 		// wait for it to be mined -- sleep a random amount between 2s and 3s
-		time.Sleep(time.Duration(rand.Float64() * float64(time.Second)))
+		time.Sleep(time.Duration(rand.Int63n(1000)+2000) * time.Millisecond)
 	}
 
 	if err := writeToFile(fmt.Sprintf("/data/flashblocks-%s.csv", region), flashblockTimings); err != nil {
@@ -130,6 +134,10 @@ func main() {
 	if err := writeToFile(fmt.Sprintf("/data/base-%s.csv", region), baseTimings); err != nil {
 		log.Fatalf("Failed to write to file: %v", err)
 	}
+
+	log.Printf("Completed test iteration count", iterations)
+	log.Printf("Flashblock errors: %v", flashblockErrors)
+	log.Printf("BaseErrors: %v", baseErrors)
 }
 
 func writeToFile(filename string, data []stats) error {
