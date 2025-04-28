@@ -29,7 +29,7 @@ type stats struct {
 func main() {
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		log.Println("Error loading .env file")
 	}
 
 	region := os.Getenv("REGION")
