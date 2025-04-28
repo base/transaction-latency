@@ -20,10 +20,10 @@ import (
 )
 
 type stats struct {
-	SentAt           time.Time
-	TxnHash          string
-	IncludedInBlock  uint64
-	InclusionDelayMs time.Duration
+	SentAt          time.Time
+	TxnHash         string
+	IncludedInBlock uint64
+	InclusionDelay  time.Duration
 }
 
 func main() {
@@ -123,11 +123,11 @@ func main() {
 		time.Sleep(time.Duration(rand.Float64() * float64(time.Second)))
 	}
 
-	if err := writeToFile(fmt.Sprintf("flashblocks-%s.csv", region), flashblockTimings); err != nil {
+	if err := writeToFile(fmt.Sprintf("/data/flashblocks-%s.csv", region), flashblockTimings); err != nil {
 		log.Fatalf("Failed to write to file: %v", err)
 	}
 
-	if err := writeToFile(fmt.Sprintf("base-%s.csv", region), baseTimings); err != nil {
+	if err := writeToFile(fmt.Sprintf("/data/base-%s.csv", region), baseTimings); err != nil {
 		log.Fatalf("Failed to write to file: %v", err)
 	}
 }
@@ -152,7 +152,7 @@ func writeToFile(filename string, data []stats) error {
 			d.SentAt.String(),
 			d.TxnHash,
 			strconv.FormatUint(d.IncludedInBlock, 10),
-			strconv.FormatInt(d.InclusionDelayMs.Milliseconds(), 10),
+			strconv.FormatInt(d.InclusionDelay.Milliseconds(), 10),
 		}
 		if err := writer.Write(row); err != nil {
 			log.Fatalf("Failed to write to file: %v", err)
@@ -211,10 +211,10 @@ func timeTransaction(chainId *big.Int, privateKey *ecdsa.PrivateKey, fromAddress
 		} else {
 			now := time.Now()
 			return stats{
-				SentAt:           sentAt,
-				InclusionDelayMs: now.Sub(sentAt),
-				TxnHash:          tx.Hash().Hex(),
-				IncludedInBlock:  receipt.BlockNumber.Uint64(),
+				SentAt:          sentAt,
+				InclusionDelay:  now.Sub(sentAt),
+				TxnHash:         tx.Hash().Hex(),
+				IncludedInBlock: receipt.BlockNumber.Uint64(),
 			}, nil
 		}
 	}
