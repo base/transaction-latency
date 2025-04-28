@@ -92,7 +92,7 @@ func main() {
 		log.Fatalf("Failed to get network ID: %v", err)
 	}
 
-	iterations := 3
+	iterations := 500
 
 	log.Printf("Starting flashblock transactions")
 	for i := 0; i < iterations; i++ {
