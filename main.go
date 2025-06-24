@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/csv"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"math/big"
@@ -62,6 +63,22 @@ func main() {
 		log.Fatal("BASE_URL environment variable not set")
 	}
 
+	sendTxnSync := os.Getenv("SEND_TXN_SYNC") == "true"
+
+	pollingIntervalMs := 100
+	if pollingEnv := os.Getenv("POLLING_INTERVAL_MS"); pollingEnv != "" {
+		if parsed, err := strconv.Atoi(pollingEnv); err == nil {
+			pollingIntervalMs = parsed
+		}
+	}
+
+	numberOfTransactions := 100
+	if txnCountEnv := os.Getenv("NUMBER_OF_TRANSACTIONS"); txnCountEnv != "" {
+		if parsed, err := strconv.Atoi(txnCountEnv); err == nil {
+			numberOfTransactions = parsed
+		}
+	}
+
 	flashblocksClient, err := ethclient.Dial(flashblocksUrl)
 	if err != nil {
 		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
@@ -92,13 +109,12 @@ func main() {
 		log.Fatalf("Failed to get network ID: %v", err)
 	}
 
-	iterations := 100
 	flashblockErrors := 0
 	baseErrors := 0
 
 	log.Printf("Starting flashblock transactions")
-	for i := 0; i < iterations; i++ {
-		timing, err := timeTransaction(chainId, privateKey, fromAddress, toAddress, flashblocksClient)
+	for i := 0; i < numberOfTransactions; i++ {
+		timing, err := timeTransaction(chainId, privateKey, fromAddress, toAddress, flashblocksClient, sendTxnSync, pollingIntervalMs)
 		if err != nil {
 			flashblockErrors += 1
 			log.Printf("Failed to send transaction: %v", err)
@@ -114,8 +130,9 @@ func main() {
 	time.Sleep(5 * time.Second)
 
 	log.Printf("Starting regular transactions")
-	for i := 0; i < iterations; i++ {
-		timing, err := timeTransaction(chainId, privateKey, fromAddress, toAddress, baseClient)
+	for i := 0; i < numberOfTransactions; i++ {
+		// Currently not supported on non-flashblock endpoints
+		timing, err := timeTransaction(chainId, privateKey, fromAddress, toAddress, baseClient, false, pollingIntervalMs)
 		if err != nil {
 			baseErrors += 1
 			log.Printf("Failed to send transaction: %v", err)
@@ -127,15 +144,15 @@ func main() {
 		time.Sleep(time.Duration(rand.Int63n(1000)+4000) * time.Millisecond)
 	}
 
-	if err := writeToFile(fmt.Sprintf("/data/flashblocks-%s.csv", region), flashblockTimings); err != nil {
+	if err := writeToFile(fmt.Sprintf("./data/flashblocks-%s.csv", region), flashblockTimings); err != nil {
 		log.Fatalf("Failed to write to file: %v", err)
 	}
 
-	if err := writeToFile(fmt.Sprintf("/data/base-%s.csv", region), baseTimings); err != nil {
+	if err := writeToFile(fmt.Sprintf("./data/base-%s.csv", region), baseTimings); err != nil {
 		log.Fatalf("Failed to write to file: %v", err)
 	}
 
-	log.Printf("Completed test iteration count", iterations)
+	log.Printf("Completed test with %d transactions", numberOfTransactions)
 	log.Printf("Flashblock errors: %v", flashblockErrors)
 	log.Printf("BaseErrors: %v", baseErrors)
 }
@@ -170,7 +187,7 @@ func writeToFile(filename string, data []stats) error {
 	return nil
 }
 
-func timeTransaction(chainId *big.Int, privateKey *ecdsa.PrivateKey, fromAddress common.Address, toAddress common.Address, client *ethclient.Client) (stats, error) {
+func timeTransaction(chainId *big.Int, privateKey *ecdsa.PrivateKey, fromAddress common.Address, toAddress common.Address, client *ethclient.Client, useSyncRPC bool, pollingIntervalMs int) (stats, error) {
 	nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
 	if err != nil {
 		return stats{}, fmt.Errorf("unable to get nonce: %v", err)
@@ -205,7 +222,40 @@ func timeTransaction(chainId *big.Int, privateKey *ecdsa.PrivateKey, fromAddress
 	}
 
 	sentAt := time.Now()
-	err = client.SendTransaction(context.Background(), signedTx)
+
+	if useSyncRPC {
+		return sendTransactionSync(client, signedTx, sentAt)
+	}
+
+	return sendTransactionAsync(client, signedTx, sentAt, pollingIntervalMs)
+}
+
+func sendTransactionSync(client *ethclient.Client, signedTx *types.Transaction, sentAt time.Time) (stats, error) {
+	rawTx, err := signedTx.MarshalBinary()
+	if err != nil {
+		return stats{}, fmt.Errorf("unable to marshal transaction: %v", err)
+	}
+
+	txnData := "0x" + hex.EncodeToString(rawTx)
+
+	var receipt *types.Receipt
+	err = client.Client().CallContext(context.Background(), &receipt, "eth_sendRawTransactionSync", txnData)
+	if err != nil {
+		return stats{}, fmt.Errorf("unable to send sync transaction: %v", err)
+	}
+
+	log.Println("Transaction sent sync: ", signedTx.Hash().Hex())
+	now := time.Now()
+	return stats{
+		SentAt:          sentAt,
+		InclusionDelay:  now.Sub(sentAt),
+		TxnHash:         signedTx.Hash().Hex(),
+		IncludedInBlock: receipt.BlockNumber.Uint64(),
+	}, nil
+}
+
+func sendTransactionAsync(client *ethclient.Client, signedTx *types.Transaction, sentAt time.Time, pollingIntervalMs int) (stats, error) {
+	err := client.SendTransaction(context.Background(), signedTx)
 	if err != nil {
 		return stats{}, fmt.Errorf("unable to send transaction: %v", err)
 	}
@@ -215,13 +265,13 @@ func timeTransaction(chainId *big.Int, privateKey *ecdsa.PrivateKey, fromAddress
 	for i := 0; i < 1000; i++ {
 		receipt, err := client.TransactionReceipt(context.Background(), signedTx.Hash())
 		if err != nil {
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(time.Duration(pollingIntervalMs) * time.Millisecond)
 		} else {
 			now := time.Now()
 			return stats{
 				SentAt:          sentAt,
 				InclusionDelay:  now.Sub(sentAt),
-				TxnHash:         tx.Hash().Hex(),
+				TxnHash:         signedTx.Hash().Hex(),
 				IncludedInBlock: receipt.BlockNumber.Uint64(),
 			}, nil
 		}
