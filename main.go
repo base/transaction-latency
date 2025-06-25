@@ -129,7 +129,7 @@ func main() {
 			// wait for it to be mined -- sleep a random amount between 600ms and 1s
 			time.Sleep(time.Duration(rand.Int63n(600)+600) * time.Millisecond)
 		} else {
-			time.Sleep(time.Duration(rand.Int63n(200)+100) * time.Millisecond)
+			time.Sleep(time.Duration(rand.Int63n(200)+200) * time.Millisecond)
 		}
 	}
 
@@ -254,6 +254,10 @@ func sendTransactionSync(client *ethclient.Client, signedTx *types.Transaction) 
 	err = client.Client().CallContext(context.Background(), &receipt, "eth_sendRawTransactionSync", txnData)
 	if err != nil {
 		return stats{}, fmt.Errorf("unable to send sync transaction: %v", err)
+	}
+
+	if receipt == nil {
+		return stats{}, fmt.Errorf("unable to send sync transaction: receipt not found")
 	}
 
 	log.Println("Transaction sent sync: ", signedTx.Hash().Hex())
