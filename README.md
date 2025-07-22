@@ -102,7 +102,7 @@ After completion, results are saved to the `./data/` directory:
 - `endpoint1-{region}.csv`: Results from `BASE_NODE_ENDPOINT_1`
 - `endpoint2-{region}.csv`: Results from `BASE_NODE_ENDPOINT_2` (if enabled)
 
-### CSV Format
+### CSV format
 
 Each CSV contains:
 - `sent_at`: Timestamp when transaction was sent
