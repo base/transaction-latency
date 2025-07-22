@@ -66,7 +66,7 @@ func main() {
 	sendTxnSync := os.Getenv("SEND_TXN_SYNC") == "true"
 	runEndpoint2Testing := os.Getenv("RUN_ENDPOINT2_TESTING") != "false"
 
-	pollingIntervalMs := 100
+	pollingIntervalMs := 50
 	if pollingEnv := os.Getenv("POLLING_INTERVAL_MS"); pollingEnv != "" {
 		if parsed, err := strconv.Atoi(pollingEnv); err == nil {
 			pollingIntervalMs = parsed
@@ -137,10 +137,10 @@ func main() {
 	time.Sleep(5 * time.Second)
 
 	if runEndpoint2Testing {
-		log.Printf("Starting endpoint2 transactions")
+		log.Printf("Starting endpoint2 transactions, syncMode=%v", sendTxnSync)
 		for i := 0; i < numberOfTransactions; i++ {
-			// Use async mode for endpoint2 testing
-			timing, err := timeTransaction(chainId, privateKey, fromAddress, toAddress, endpoint2Client, false, pollingIntervalMs)
+			// Use the same mode as endpoint1 for fair comparison
+			timing, err := timeTransaction(chainId, privateKey, fromAddress, toAddress, endpoint2Client, sendTxnSync, pollingIntervalMs)
 			if err != nil {
 				endpoint2Errors += 1
 				log.Printf("Failed to send transaction: %v", err)
@@ -155,12 +155,12 @@ func main() {
 		log.Printf("Skipping endpoint2 transactions (RUN_ENDPOINT2_TESTING=false)")
 	}
 
-	if err := writeToFile(fmt.Sprintf("./data/endpoint1-%s.csv", region), endpoint1Timings); err != nil {
+	if err := writeToFile(fmt.Sprintf("/data/endpoint1-%s.csv", region), endpoint1Timings); err != nil {
 		log.Fatalf("Failed to write to file: %v", err)
 	}
 
 	if runEndpoint2Testing {
-		if err := writeToFile(fmt.Sprintf("./data/endpoint2-%s.csv", region), endpoint2Timings); err != nil {
+		if err := writeToFile(fmt.Sprintf("/data/endpoint2-%s.csv", region), endpoint2Timings); err != nil {
 			log.Fatalf("Failed to write to file: %v", err)
 		}
 	}

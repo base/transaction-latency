@@ -23,16 +23,17 @@ PRIVATE_KEY=your_private_key_here
 TO_ADDRESS=0xc2F695613de0885dA3bdd18E8c317B9fAf7d4eba
 
 # If you are going with the asynchronous method and poll for the transaction receipts separately
-POLLING_INTERVAL_MS=100
+POLLING_INTERVAL_MS=50
 
 BASE_NODE_ENDPOINT_1=https://your-node-endpoint-1.com
 BASE_NODE_ENDPOINT_2=https://your-node-endpoint-2.com
 
 # This a simple label for the resulting filename to remember where you sent the test transactions from. Not used in any node routing.
 REGION=singapore
+
 NUMBER_OF_TRANSACTIONS=10
 
-# With `true`, the synchronous eth_sendRawTransactionSync method is used. With `false`, the asynchronous method is used with POLLING_INTERVAL_MS=100
+# With `true`, the synchronous eth_sendRawTransactionSync method is used. With `false`, the asynchronous method is used with POLLING_INTERVAL_MS=50
 SEND_TXN_SYNC=true
 
 RUN_ENDPOINT2_TESTING=true
@@ -57,7 +58,7 @@ RUN_ENDPOINT2_TESTING=true
 **`POLLING_INTERVAL_MS`**: 
 - Used only when `SEND_TXN_SYNC=false`
 - Defines how frequently (in milliseconds) to check for transaction receipts
-- Default: 100ms
+- Default: 50ms (recommended for accurate latency measurements)
 - Lower values = more frequent polling = faster detection but higher load
 - Not used when `SEND_TXN_SYNC=true` since confirmations are immediate
 
@@ -80,6 +81,19 @@ docker build -t transaction-latency .
 # Run the test
 docker run -v $(pwd)/data:/data --env-file .env --rm -it transaction-latency
 ```
+
+### Note about .env file loading
+
+When running with Docker, you may see the log message:
+```
+Error loading .env file
+```
+
+This is expected and harmless. The application uses two methods to load environment variables:
+1. **Docker's `--env-file` flag** (recommended): Sets environment variables at container runtime
+2. **Direct .env file loading**: Attempts to read the `.env` file from inside the container
+
+Since we use the `--env-file` approach for security (keeping secrets out of the image), the direct file loading fails but the environment variables are still available via Docker. The application continues normally and all configuration works as expected.
 
 ## Results
 
