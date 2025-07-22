@@ -43,19 +43,19 @@ RUN_ENDPOINT2_TESTING=true
 
 #### Transaction sending testing modes
 
-**`SEND_TXN_SYNC=true`**: 
+`SEND_TXN_SYNC=true`: 
 - Uses `eth_sendRawTransactionSync` method
 - Provides instant confirmation receipt when transaction is included in a Flashblock
 - Transactions wait for immediate inclusion confirmation
 
-**`SEND_TXN_SYNC=false`**: 
+`SEND_TXN_SYNC=false`: 
 - Uses standard `eth_sendTransaction` method
 - Polls for transaction receipts using `POLLING_INTERVAL_MS`
 - Traditional async transaction sending
 
 #### Polling configuration
 
-**`POLLING_INTERVAL_MS`**: 
+`POLLING_INTERVAL_MS`:
 - Used only when `SEND_TXN_SYNC=false`
 - Defines how frequently (in milliseconds) to check for transaction receipts
 - Default: 50ms (recommended for accurate latency measurements)
@@ -64,8 +64,8 @@ RUN_ENDPOINT2_TESTING=true
 
 #### Endpoint testing
 
-**`BASE_NODE_ENDPOINT_1`**: Primary endpoint (e.g., a Flashblocks-enabled)
-**`BASE_NODE_ENDPOINT_2`**: Secondary endpoint (e.g., a standard non-Flashblocks endpoint)
+- `BASE_NODE_ENDPOINT_1`: Primary endpoint (e.g., a Flashblocks-enabled)
+- `BASE_NODE_ENDPOINT_2`: Secondary endpoint (e.g., a standard non-Flashblocks endpoint)
 
 The tool will:
 1. Send transactions to `BASE_NODE_ENDPOINT_1` first
