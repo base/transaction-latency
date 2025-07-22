@@ -53,18 +53,18 @@ func main() {
 		log.Fatal("TO_ADDRESS environment variable not set")
 	}
 
-	flashblocksUrl := os.Getenv("FLASHBLOCKS_URL")
-	if flashblocksUrl == "" {
-		log.Fatal("FLASHBLOCKS_URL environment variable not set")
+	endpoint1 := os.Getenv("BASE_NODE_ENDPOINT_1")
+	if endpoint1 == "" {
+		log.Fatal("BASE_NODE_ENDPOINT_1 environment variable not set")
 	}
 
-	baseUrl := os.Getenv("BASE_URL")
-	if baseUrl == "" {
-		log.Fatal("BASE_URL environment variable not set")
+	endpoint2 := os.Getenv("BASE_NODE_ENDPOINT_2")
+	if endpoint2 == "" {
+		log.Fatal("BASE_NODE_ENDPOINT_2 environment variable not set")
 	}
 
 	sendTxnSync := os.Getenv("SEND_TXN_SYNC") == "true"
-	runStandardTransactionSending := os.Getenv("RUN_STANDARD_TRANSACTION_SENDING") != "false"
+	runEndpoint2Testing := os.Getenv("RUN_ENDPOINT2_TESTING") != "false"
 
 	pollingIntervalMs := 100
 	if pollingEnv := os.Getenv("POLLING_INTERVAL_MS"); pollingEnv != "" {
@@ -82,12 +82,12 @@ func main() {
 		}
 	}
 
-	flashblocksClient, err := ethclient.Dial(flashblocksUrl)
+	endpoint1Client, err := ethclient.Dial(endpoint1)
 	if err != nil {
 		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
 	}
 
-	baseClient, err := ethclient.Dial(baseUrl)
+	endpoint2Client, err := ethclient.Dial(endpoint2)
 	if err != nil {
 		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
 	}
@@ -104,26 +104,26 @@ func main() {
 	}
 	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
 
-	var flashblockTimings []stats
-	var baseTimings []stats
+	var endpoint1Timings []stats
+	var endpoint2Timings []stats
 
-	chainId, err := baseClient.NetworkID(context.Background())
+	chainId, err := endpoint2Client.NetworkID(context.Background())
 	if err != nil {
 		log.Fatalf("Failed to get network ID: %v", err)
 	}
 
-	flashblockErrors := 0
-	baseErrors := 0
+	endpoint1Errors := 0
+	endpoint2Errors := 0
 
-	log.Printf("Starting flashblock transactions, syncMode=%v", sendTxnSync)
+	log.Printf("Starting endpoint1 transactions, syncMode=%v", sendTxnSync)
 	for i := 0; i < numberOfTransactions; i++ {
-		timing, err := timeTransaction(chainId, privateKey, fromAddress, toAddress, flashblocksClient, sendTxnSync, pollingIntervalMs)
+		timing, err := timeTransaction(chainId, privateKey, fromAddress, toAddress, endpoint1Client, sendTxnSync, pollingIntervalMs)
 		if err != nil {
-			flashblockErrors += 1
+			endpoint1Errors += 1
 			log.Printf("Failed to send transaction: %v", err)
 		}
 
-		flashblockTimings = append(flashblockTimings, timing)
+		endpoint1Timings = append(endpoint1Timings, timing)
 
 		if !sendTxnSync {
 			// wait for it to be mined -- sleep a random amount between 600ms and 1s
@@ -133,41 +133,41 @@ func main() {
 		}
 	}
 
-	// wait for the final fb transaction to land
+	// wait for the final endpoint1 transaction to land
 	time.Sleep(5 * time.Second)
 
-	if runStandardTransactionSending {
-		log.Printf("Starting regular transactions")
+	if runEndpoint2Testing {
+		log.Printf("Starting endpoint2 transactions")
 		for i := 0; i < numberOfTransactions; i++ {
-			// Currently not supported on non-flashblock endpoints
-			timing, err := timeTransaction(chainId, privateKey, fromAddress, toAddress, baseClient, false, pollingIntervalMs)
+			// Use async mode for endpoint2 testing
+			timing, err := timeTransaction(chainId, privateKey, fromAddress, toAddress, endpoint2Client, false, pollingIntervalMs)
 			if err != nil {
-				baseErrors += 1
+				endpoint2Errors += 1
 				log.Printf("Failed to send transaction: %v", err)
 			}
 
-			baseTimings = append(baseTimings, timing)
+			endpoint2Timings = append(endpoint2Timings, timing)
 
 			// wait for it to be mined -- sleep a random amount between 4s and 3s
 			time.Sleep(time.Duration(rand.Int63n(1000)+4000) * time.Millisecond)
 		}
 	} else {
-		log.Printf("Skipping regular transactions (RUN_STANDARD_TRANSACTION_SENDING=false)")
+		log.Printf("Skipping endpoint2 transactions (RUN_ENDPOINT2_TESTING=false)")
 	}
 
-	if err := writeToFile(fmt.Sprintf("./data/flashblocks-%s.csv", region), flashblockTimings); err != nil {
+	if err := writeToFile(fmt.Sprintf("./data/endpoint1-%s.csv", region), endpoint1Timings); err != nil {
 		log.Fatalf("Failed to write to file: %v", err)
 	}
 
-	if runStandardTransactionSending {
-		if err := writeToFile(fmt.Sprintf("./data/base-%s.csv", region), baseTimings); err != nil {
+	if runEndpoint2Testing {
+		if err := writeToFile(fmt.Sprintf("./data/endpoint2-%s.csv", region), endpoint2Timings); err != nil {
 			log.Fatalf("Failed to write to file: %v", err)
 		}
 	}
 
 	log.Printf("Completed test with %d transactions", numberOfTransactions)
-	log.Printf("Flashblock errors: %v", flashblockErrors)
-	log.Printf("BaseErrors: %v", baseErrors)
+	log.Printf("Endpoint1 errors: %v", endpoint1Errors)
+	log.Printf("Endpoint2 errors: %v", endpoint2Errors)
 }
 
 func writeToFile(filename string, data []stats) error {
