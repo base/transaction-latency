@@ -123,6 +123,30 @@ The actual confirmation time depends on:
 - Time until next Flashblock (up to 200ms)
 - Network travel time for confirmation response
 
+## Optional eth_getBlockByNumber comparison
+
+On a Flashblocks-enabled node, the following standard RPC methods will retrieve the Flashblocks data instead of full blocks data:
+
+  * `eth_getBlockByNumber` with `pending` tag
+  * `eth_getTransactionReceipt`
+  * `eth_getBalance` with `pending` tag
+  * `eth_getTransactionCount` with `pending` tag
+  * `eth_getTransactionByHash` with `pending` tag
+  * `eth_sendRawTransactionSync`
+
+For a quick comparison, see:
+
+* `eth-get-block-by-number-pending-examples/preconfirmed-flashblock.log` — the result of running `"method":"eth_getBlockByNumber","params":["pending",true]` on a Flashblocks-enabled node as [block 33228756](https://basescan.org/block/33228756) was forming.
+* `eth-get-block-by-number-pending-examples/confirmed-block.log` — the result of running of running `"method":"eth_getBlockByNumber","params":["pending",true]` on a non-Flashblocks-enabled node as [block 33228756](https://basescan.org/block/33228756) was formed.
+
+You will see the key differences in the results:
+* Transaction count — 52 in the Flashblock vs. 167 in the fully formed block.
+* `stateRoot` — empty in the Flashblock vs. computed in the fully formed block.
+* `blockHash` — different in the Flashblock and the fully formed block. The finalized transactions will have the hash of the fully formed block attributed to them.
+* `receiptsRoot` — different in the Flashblock and the fully formed block.
+
+
+
 ## Learn more
 
 - [Base Flashblocks documentation](https://docs.base.org/base-chain/flashblocks/apps)
