@@ -145,8 +145,6 @@ You will see the key differences in the results:
 * `blockHash` — different in the Flashblock and the fully formed block. The finalized transactions will have the hash of the fully formed block attributed to them.
 * `receiptsRoot` — different in the Flashblock and the fully formed block.
 
-
-
 ## Learn more
 
 - [Base Flashblocks documentation](https://docs.base.org/base-chain/flashblocks/apps)
