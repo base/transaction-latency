@@ -108,6 +108,7 @@ func main() {
 	var baseTimings []stats
 
 	chainId, err := baseClient.NetworkID(context.Background())
+	log.Printf("Chain ID: %v", chainId)
 	if err != nil {
 		log.Fatalf("Failed to get network ID: %v", err)
 	}
@@ -201,7 +202,8 @@ func writeToFile(filename string, data []stats) error {
 }
 
 func timeTransaction(chainId *big.Int, privateKey *ecdsa.PrivateKey, fromAddress common.Address, toAddress common.Address, client *ethclient.Client, useSyncRPC bool, pollingIntervalMs int) (stats, error) {
-	nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
+	// Use confirmed nonce to avoid conflicts with pending transactions
+	nonce, err := client.NonceAt(context.Background(), fromAddress, nil)
 	if err != nil {
 		return stats{}, fmt.Errorf("unable to get nonce: %v", err)
 	}
@@ -215,14 +217,21 @@ func timeTransaction(chainId *big.Int, privateKey *ecdsa.PrivateKey, fromAddress
 
 	tip, err := client.SuggestGasTipCap(context.Background())
 	if err != nil {
-		return stats{}, fmt.Errorf("unable to get gas price: %v", err)
+		return stats{}, fmt.Errorf("unable to get gas tip cap: %v", err)
 	}
+
+	// Add 20% buffer to tip to ensure replacement transactions are accepted
+	tipWithBuffer := new(big.Int).Mul(tip, big.NewInt(120))
+	tipWithBuffer.Div(tipWithBuffer, big.NewInt(100))
+
+	// Set GasFeeCap to baseFee + tip, with proper calculation and buffer
+	gasFeeCapWithBuffer := new(big.Int).Mul(gasPrice, big.NewInt(2))
 
 	tx := types.NewTx(&types.DynamicFeeTx{
 		ChainID:   chainId,
 		Nonce:     nonce,
-		GasTipCap: tip,
-		GasFeeCap: gasPrice,
+		GasTipCap: tipWithBuffer,
+		GasFeeCap: gasFeeCapWithBuffer,
 		Gas:       gasLimit,
 		To:        &toAddress,
 		Value:     value,
