@@ -23,6 +23,7 @@ type Bundle struct {
 
 #### `sendBundle(client, signedTxs, targetBlockNumber)`
 - Converts signed transactions to raw transaction bytes (not hex-encoded)
+- Collects all transaction hashes and adds them to `revertingTxHashes` (required by Base TIPS)
 - Creates Bundle structure matching Base TIPS format with `Vec<Bytes>` for txs field
 - Sends bundle via `eth_sendBundle` RPC call
 - Returns bundle hash on success
@@ -82,6 +83,11 @@ Bundle test completed successfully
 - All transactions in a bundle are either included together or not at all
 - If one transaction fails, the entire bundle is rejected
 - Bundles target specific block numbers
+
+### Transaction Hash Requirements
+- **All transaction hashes MUST be included in `revertingTxHashes`** as required by Base TIPS
+- This allows the bundle to be processed even if individual transactions might revert
+- The `droppingTxHashes` field is typically empty for new bundles
 
 ### Nonce Management
 - Transactions use sequential nonces starting from the current confirmed nonce

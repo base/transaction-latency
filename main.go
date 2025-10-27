@@ -338,21 +338,23 @@ func sendTransactionAsync(client *ethclient.Client, signedTx *types.Transaction,
 }
 
 func sendBundle(client *ethclient.Client, signedTxs []*types.Transaction, targetBlockNumber uint64) (string, error) {
-	// Convert transactions to raw transaction bytes
+	// Convert transactions to raw transaction bytes and collect hashes
 	var txsBytes [][]byte
+	var txHashes []common.Hash
 	for _, tx := range signedTxs {
 		rawTx, err := tx.MarshalBinary()
 		if err != nil {
 			return "", fmt.Errorf("unable to marshal transaction: %v", err)
 		}
 		txsBytes = append(txsBytes, rawTx)
+		txHashes = append(txHashes, tx.Hash())
 	}
 
 	// Create bundle structure matching Base TIPS format
 	bundle := Bundle{
 		Txs:               txsBytes,
 		BlockNumber:       targetBlockNumber,
-		RevertingTxHashes: []common.Hash{}, // Empty array if no reverting txs
+		RevertingTxHashes: txHashes,        // All transaction hashes must be in reverting_tx_hashes
 		DroppingTxHashes:  []common.Hash{}, // Empty array if no dropping txs
 	}
 
