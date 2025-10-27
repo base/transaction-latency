@@ -7,7 +7,7 @@ This implementation adds support for sending transaction bundles using the `eth_
 ### 1. Bundle Data Structure
 ```go
 type Bundle struct {
-    Txs                   []string  `json:"txs"`                             // Raw transaction bytes (hex-encoded)
+    Txs                   [][]byte  `json:"txs"`                             // Raw transaction bytes
     BlockNumber           uint64    `json:"blockNumber"`                     // Target block number
     FlashblockNumberMin   *uint64   `json:"flashblockNumberMin,omitempty"`   // Optional: minimum flashblock number
     FlashblockNumberMax   *uint64   `json:"flashblockNumberMax,omitempty"`   // Optional: maximum flashblock number
@@ -22,8 +22,8 @@ type Bundle struct {
 ### 2. Core Functions
 
 #### `sendBundle(client, signedTxs, targetBlockNumber)`
-- Converts signed transactions to hex-encoded raw transaction data
-- Creates Bundle structure matching Base TIPS format
+- Converts signed transactions to raw transaction bytes (not hex-encoded)
+- Creates Bundle structure matching Base TIPS format with `Vec<Bytes>` for txs field
 - Sends bundle via `eth_sendBundle` RPC call
 - Returns bundle hash on success
 

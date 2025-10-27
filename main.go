@@ -28,7 +28,7 @@ type stats struct {
 }
 
 type Bundle struct {
-	Txs                 []string `json:"txs"`                           // Raw transaction bytes (hex-encoded)
+	Txs                 [][]byte `json:"txs"`                           // Raw transaction bytes
 	BlockNumber         uint64   `json:"blockNumber"`                   // Target block number
 	FlashblockNumberMin *uint64  `json:"flashblockNumberMin,omitempty"` // Optional: minimum flashblock number
 	FlashblockNumberMax *uint64  `json:"flashblockNumberMax,omitempty"` // Optional: maximum flashblock number
@@ -338,19 +338,19 @@ func sendTransactionAsync(client *ethclient.Client, signedTx *types.Transaction,
 }
 
 func sendBundle(client *ethclient.Client, signedTxs []*types.Transaction, targetBlockNumber uint64) (string, error) {
-	// Convert transactions to hex-encoded raw transaction data
-	var txsHex []string
+	// Convert transactions to raw transaction bytes
+	var txsBytes [][]byte
 	for _, tx := range signedTxs {
 		rawTx, err := tx.MarshalBinary()
 		if err != nil {
 			return "", fmt.Errorf("unable to marshal transaction: %v", err)
 		}
-		txsHex = append(txsHex, "0x"+hex.EncodeToString(rawTx))
+		txsBytes = append(txsBytes, rawTx)
 	}
 
 	// Create bundle structure matching Base TIPS format
 	bundle := Bundle{
-		Txs:               txsHex,
+		Txs:               txsBytes,
 		BlockNumber:       targetBlockNumber,
 		RevertingTxHashes: []string{}, // Empty array if no reverting txs
 		DroppingTxHashes:  []string{}, // Empty array if no dropping txs
