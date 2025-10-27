@@ -7,15 +7,15 @@ This implementation adds support for sending transaction bundles using the `eth_
 ### 1. Bundle Data Structure
 ```go
 type Bundle struct {
-    Txs                   [][]byte  `json:"txs"`                             // Raw transaction bytes
-    BlockNumber           uint64    `json:"blockNumber"`                     // Target block number
-    FlashblockNumberMin   *uint64   `json:"flashblockNumberMin,omitempty"`   // Optional: minimum flashblock number
-    FlashblockNumberMax   *uint64   `json:"flashblockNumberMax,omitempty"`   // Optional: maximum flashblock number
-    MinTimestamp          *uint64   `json:"minTimestamp,omitempty"`          // Optional: minimum timestamp
-    MaxTimestamp          *uint64   `json:"maxTimestamp,omitempty"`          // Optional: maximum timestamp
-    RevertingTxHashes     []string  `json:"revertingTxHashes"`               // Transaction hashes that can revert
-    ReplacementUuid       *string   `json:"replacementUuid,omitempty"`       // Optional: replacement UUID
-    DroppingTxHashes      []string  `json:"droppingTxHashes"`                // Transaction hashes to drop
+    Txs                   [][]byte      `json:"txs"`                           // Raw transaction bytes
+    BlockNumber           uint64        `json:"blockNumber"`                   // Target block number
+    FlashblockNumberMin   *uint64       `json:"flashblockNumberMin,omitempty"` // Optional: minimum flashblock number
+    FlashblockNumberMax   *uint64       `json:"flashblockNumberMax,omitempty"` // Optional: maximum flashblock number
+    MinTimestamp          *uint64       `json:"minTimestamp,omitempty"`        // Optional: minimum timestamp
+    MaxTimestamp          *uint64       `json:"maxTimestamp,omitempty"`        // Optional: maximum timestamp
+    RevertingTxHashes     []common.Hash `json:"revertingTxHashes"`             // Transaction hashes that can revert (Vec<TxHash>)
+    ReplacementUuid       *string       `json:"replacementUuid,omitempty"`     // Optional: replacement UUID
+    DroppingTxHashes      []common.Hash `json:"droppingTxHashes"`              // Transaction hashes to drop (Vec<TxHash>)
 }
 ```
 
