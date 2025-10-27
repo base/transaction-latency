@@ -27,6 +27,18 @@ type stats struct {
 	InclusionDelay  time.Duration
 }
 
+type Bundle struct {
+	Txs                 []string `json:"txs"`                           // Raw transaction bytes (hex-encoded)
+	BlockNumber         uint64   `json:"blockNumber"`                   // Target block number
+	FlashblockNumberMin *uint64  `json:"flashblockNumberMin,omitempty"` // Optional: minimum flashblock number
+	FlashblockNumberMax *uint64  `json:"flashblockNumberMax,omitempty"` // Optional: maximum flashblock number
+	MinTimestamp        *uint64  `json:"minTimestamp,omitempty"`        // Optional: minimum timestamp
+	MaxTimestamp        *uint64  `json:"maxTimestamp,omitempty"`        // Optional: maximum timestamp
+	RevertingTxHashes   []string `json:"revertingTxHashes"`             // Transaction hashes that can revert
+	ReplacementUuid     *string  `json:"replacementUuid,omitempty"`     // Optional: replacement UUID
+	DroppingTxHashes    []string `json:"droppingTxHashes"`              // Transaction hashes to drop
+}
+
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -65,6 +77,7 @@ func main() {
 
 	sendTxnSync := os.Getenv("SEND_TXN_SYNC") == "true"
 	runStandardTransactionSending := os.Getenv("RUN_STANDARD_TRANSACTION_SENDING") != "false"
+	runBundleTest := os.Getenv("RUN_BUNDLE_TEST") == "true"
 
 	pollingIntervalMs := 100
 	if pollingEnv := os.Getenv("POLLING_INTERVAL_MS"); pollingEnv != "" {
@@ -79,6 +92,13 @@ func main() {
 	if txnCountEnv := os.Getenv("NUMBER_OF_TRANSACTIONS"); txnCountEnv != "" {
 		if parsed, err := strconv.Atoi(txnCountEnv); err == nil {
 			numberOfTransactions = parsed
+		}
+	}
+
+	bundleSize := 3
+	if bundleSizeEnv := os.Getenv("BUNDLE_SIZE"); bundleSizeEnv != "" {
+		if parsed, err := strconv.Atoi(bundleSizeEnv); err == nil {
+			bundleSize = parsed
 		}
 	}
 
@@ -111,6 +131,17 @@ func main() {
 	log.Printf("Chain ID: %v", chainId)
 	if err != nil {
 		log.Fatalf("Failed to get network ID: %v", err)
+	}
+
+	// Bundle testing
+	if runBundleTest {
+		log.Printf("Starting bundle test with %d transactions per bundle", bundleSize)
+		err = createAndSendBundle(chainId, privateKey, fromAddress, toAddress, flashblocksClient, bundleSize)
+		if err != nil {
+			log.Printf("Failed to send bundle: %v", err)
+		} else {
+			log.Printf("Bundle test completed successfully")
+		}
 	}
 
 	flashblockErrors := 0
@@ -304,4 +335,101 @@ func sendTransactionAsync(client *ethclient.Client, signedTx *types.Transaction,
 	}
 
 	return stats{}, fmt.Errorf("failed to get transaction")
+}
+
+func sendBundle(client *ethclient.Client, signedTxs []*types.Transaction, targetBlockNumber uint64) (string, error) {
+	// Convert transactions to hex-encoded raw transaction data
+	var txsHex []string
+	for _, tx := range signedTxs {
+		rawTx, err := tx.MarshalBinary()
+		if err != nil {
+			return "", fmt.Errorf("unable to marshal transaction: %v", err)
+		}
+		txsHex = append(txsHex, "0x"+hex.EncodeToString(rawTx))
+	}
+
+	// Create bundle structure matching Base TIPS format
+	bundle := Bundle{
+		Txs:               txsHex,
+		BlockNumber:       targetBlockNumber,
+		RevertingTxHashes: []string{}, // Empty array if no reverting txs
+		DroppingTxHashes:  []string{}, // Empty array if no dropping txs
+	}
+
+	// Send bundle via RPC call
+	var bundleHash string
+	err := client.Client().CallContext(context.Background(), &bundleHash, "eth_sendBundle", bundle)
+	if err != nil {
+		return "", fmt.Errorf("unable to send bundle: %v", err)
+	}
+
+	log.Printf("Bundle sent successfully with hash: %s", bundleHash)
+	return bundleHash, nil
+}
+
+func createAndSendBundle(chainId *big.Int, privateKey *ecdsa.PrivateKey, fromAddress common.Address, toAddress common.Address, client *ethclient.Client, numTxs int) error {
+	// Get current block number for targeting
+	currentBlock, err := client.BlockNumber(context.Background())
+	if err != nil {
+		return fmt.Errorf("unable to get current block number: %v", err)
+	}
+
+	// Target the next block
+	targetBlock := currentBlock + 1
+
+	// Get base nonce
+	baseNonce, err := client.NonceAt(context.Background(), fromAddress, nil)
+	if err != nil {
+		return fmt.Errorf("unable to get nonce: %v", err)
+	}
+
+	// Get gas parameters (similar to existing code)
+	gasPrice, err := client.SuggestGasPrice(context.Background())
+	if err != nil {
+		return fmt.Errorf("unable to get gas price: %v", err)
+	}
+
+	tip, err := client.SuggestGasTipCap(context.Background())
+	if err != nil {
+		return fmt.Errorf("unable to get gas tip cap: %v", err)
+	}
+
+	// Add 20% buffer to tip to ensure replacement transactions are accepted
+	tipWithBuffer := new(big.Int).Mul(tip, big.NewInt(120))
+	tipWithBuffer.Div(tipWithBuffer, big.NewInt(100))
+
+	// Set GasFeeCap to baseFee + tip, with proper calculation and buffer
+	gasFeeCapWithBuffer := new(big.Int).Mul(gasPrice, big.NewInt(2))
+
+	// Create multiple signed transactions for the bundle
+	var signedTxs []*types.Transaction
+	for i := 0; i < numTxs; i++ {
+		tx := types.NewTx(&types.DynamicFeeTx{
+			ChainID:   chainId,
+			Nonce:     baseNonce + uint64(i), // Sequential nonces
+			GasTipCap: tipWithBuffer,
+			GasFeeCap: gasFeeCapWithBuffer,
+			Gas:       21000,
+			To:        &toAddress,
+			Value:     big.NewInt(100),
+			Data:      nil,
+		})
+
+		signedTx, err := types.SignTx(tx, types.NewPragueSigner(chainId), privateKey)
+		if err != nil {
+			return fmt.Errorf("unable to sign transaction %d: %v", i, err)
+		}
+
+		signedTxs = append(signedTxs, signedTx)
+		log.Printf("Created transaction %d with nonce %d, hash: %s", i, baseNonce+uint64(i), signedTx.Hash().Hex())
+	}
+
+	// Send the bundle
+	bundleHash, err := sendBundle(client, signedTxs, targetBlock)
+	if err != nil {
+		return fmt.Errorf("failed to send bundle: %v", err)
+	}
+
+	log.Printf("Bundle sent with hash: %s, targeting block: %d", bundleHash, targetBlock)
+	return nil
 }
