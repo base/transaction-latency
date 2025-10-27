@@ -232,23 +232,17 @@ func writeToFile(filename string, data []stats) error {
 	return nil
 }
 
-func timeTransaction(chainId *big.Int, privateKey *ecdsa.PrivateKey, fromAddress common.Address, toAddress common.Address, client *ethclient.Client, useSyncRPC bool, pollingIntervalMs int) (stats, error) {
-	// Use confirmed nonce to avoid conflicts with pending transactions
-	nonce, err := client.NonceAt(context.Background(), fromAddress, nil)
-	if err != nil {
-		return stats{}, fmt.Errorf("unable to get nonce: %v", err)
-	}
-
+func createTx(chainId *big.Int, privateKey *ecdsa.PrivateKey, toAddress common.Address, client *ethclient.Client, nonce uint64) (*types.Transaction, error) {
 	gasPrice, err := client.SuggestGasPrice(context.Background())
 	if err != nil {
-		return stats{}, fmt.Errorf("unable to get gas price: %v", err)
+		return nil, fmt.Errorf("unable to get gas price: %v", err)
 	}
 	gasLimit := uint64(21000)
 	value := big.NewInt(100)
 
 	tip, err := client.SuggestGasTipCap(context.Background())
 	if err != nil {
-		return stats{}, fmt.Errorf("unable to get gas tip cap: %v", err)
+		return nil, fmt.Errorf("unable to get gas tip cap: %v", err)
 	}
 
 	// Add 20% buffer to tip to ensure replacement transactions are accepted
@@ -271,7 +265,22 @@ func timeTransaction(chainId *big.Int, privateKey *ecdsa.PrivateKey, fromAddress
 
 	signedTx, err := types.SignTx(tx, types.NewPragueSigner(chainId), privateKey)
 	if err != nil {
-		return stats{}, fmt.Errorf("unable to sign transaction: %v", err)
+		return nil, fmt.Errorf("unable to sign transaction: %v", err)
+	}
+
+	return signedTx, nil
+}
+
+func timeTransaction(chainId *big.Int, privateKey *ecdsa.PrivateKey, fromAddress common.Address, toAddress common.Address, client *ethclient.Client, useSyncRPC bool, pollingIntervalMs int) (stats, error) {
+	// Use confirmed nonce to avoid conflicts with pending transactions
+	nonce, err := client.NonceAt(context.Background(), fromAddress, nil)
+	if err != nil {
+		return stats{}, fmt.Errorf("unable to get nonce: %v", err)
+	}
+
+	signedTx, err := createTx(chainId, privateKey, toAddress, client, nonce)
+	if err != nil {
+		return stats{}, fmt.Errorf("unable to create transaction: %v", err)
 	}
 
 	if useSyncRPC {
@@ -385,45 +394,17 @@ func createAndSendBundle(chainId *big.Int, privateKey *ecdsa.PrivateKey, fromAdd
 		return fmt.Errorf("unable to get nonce: %v", err)
 	}
 
-	// Get gas parameters (similar to existing code)
-	gasPrice, err := client.SuggestGasPrice(context.Background())
-	if err != nil {
-		return fmt.Errorf("unable to get gas price: %v", err)
-	}
-
-	tip, err := client.SuggestGasTipCap(context.Background())
-	if err != nil {
-		return fmt.Errorf("unable to get gas tip cap: %v", err)
-	}
-
-	// Add 20% buffer to tip to ensure replacement transactions are accepted
-	tipWithBuffer := new(big.Int).Mul(tip, big.NewInt(120))
-	tipWithBuffer.Div(tipWithBuffer, big.NewInt(100))
-
-	// Set GasFeeCap to baseFee + tip, with proper calculation and buffer
-	gasFeeCapWithBuffer := new(big.Int).Mul(gasPrice, big.NewInt(2))
-
 	// Create multiple signed transactions for the bundle
 	var signedTxs []*types.Transaction
 	for i := 0; i < numTxs; i++ {
-		tx := types.NewTx(&types.DynamicFeeTx{
-			ChainID:   chainId,
-			Nonce:     baseNonce + uint64(i), // Sequential nonces
-			GasTipCap: tipWithBuffer,
-			GasFeeCap: gasFeeCapWithBuffer,
-			Gas:       21000,
-			To:        &toAddress,
-			Value:     big.NewInt(100),
-			Data:      nil,
-		})
-
-		signedTx, err := types.SignTx(tx, types.NewPragueSigner(chainId), privateKey)
+		nonce := baseNonce + uint64(i) // Sequential nonces
+		signedTx, err := createTx(chainId, privateKey, toAddress, client, nonce)
 		if err != nil {
-			return fmt.Errorf("unable to sign transaction %d: %v", i, err)
+			return fmt.Errorf("unable to create transaction %d: %v", i, err)
 		}
 
 		signedTxs = append(signedTxs, signedTx)
-		log.Printf("Created transaction %d with nonce %d, hash: %s", i, baseNonce+uint64(i), signedTx.Hash().Hex())
+		log.Printf("Created transaction %d with nonce %d, hash: %s", i, nonce, signedTx.Hash().Hex())
 	}
 
 	// Send the bundle
