@@ -245,18 +245,11 @@ func createTx(chainId *big.Int, privateKey *ecdsa.PrivateKey, toAddress common.A
 		return nil, fmt.Errorf("unable to get gas tip cap: %v", err)
 	}
 
-	// Add 20% buffer to tip to ensure replacement transactions are accepted
-	tipWithBuffer := new(big.Int).Mul(tip, big.NewInt(120))
-	tipWithBuffer.Div(tipWithBuffer, big.NewInt(100))
-
-	// Set GasFeeCap to baseFee + tip, with proper calculation and buffer
-	gasFeeCapWithBuffer := new(big.Int).Mul(gasPrice, big.NewInt(2))
-
 	tx := types.NewTx(&types.DynamicFeeTx{
 		ChainID:   chainId,
 		Nonce:     nonce,
-		GasTipCap: tipWithBuffer,
-		GasFeeCap: gasFeeCapWithBuffer,
+		GasTipCap: tip,
+		GasFeeCap: gasPrice,
 		Gas:       gasLimit,
 		To:        &toAddress,
 		Value:     value,
