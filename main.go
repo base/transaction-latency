@@ -265,8 +265,8 @@ func createTx(chainId *big.Int, privateKey *ecdsa.PrivateKey, toAddress common.A
 }
 
 func timeTransaction(chainId *big.Int, privateKey *ecdsa.PrivateKey, fromAddress common.Address, toAddress common.Address, client *ethclient.Client, useSyncRPC bool, pollingIntervalMs int) (stats, error) {
-	// Use confirmed nonce to avoid conflicts with pending transactions
-	nonce, err := client.NonceAt(context.Background(), fromAddress, nil)
+	// Use pending nonce to avoid conflicts with pending transactions
+	nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
 	if err != nil {
 		return stats{}, fmt.Errorf("unable to get nonce: %v", err)
 	}
@@ -382,7 +382,7 @@ func createAndSendBundle(chainId *big.Int, privateKey *ecdsa.PrivateKey, fromAdd
 	targetBlock := currentBlock + 1
 
 	// Get base nonce
-	baseNonce, err := client.NonceAt(context.Background(), fromAddress, nil)
+	baseNonce, err := client.PendingNonceAt(context.Background(), fromAddress)
 	if err != nil {
 		return fmt.Errorf("unable to get nonce: %v", err)
 	}
